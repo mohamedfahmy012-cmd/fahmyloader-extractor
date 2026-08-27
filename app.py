@@ -44,20 +44,21 @@ def api():
 
     try:
         with tempfile.TemporaryDirectory() as tmp:
-            # ask yt-dlp for the best direct mp4 url + title, no download
+            # Ask yt-dlp for the best direct media url + title, no download.
+            # No hard format filter: let yt-dlp pick whatever is playable for
+            # YouTube, Facebook, Instagram, Threads, TikTok, etc.
             cmd = [
                 "yt-dlp",
                 "--no-warnings",
                 "--dump-json",
                 "--no-playlist",
-                "-f", "best[ext=mp4]/best",
                 url,
             ]
             proc = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=60,
+                timeout=90,
                 cwd=tmp,
             )
             out = proc.stdout.strip()
@@ -70,13 +71,13 @@ def api():
             info = json.loads(out.splitlines()[0])
             direct = info.get("url") or info.get("webpage_url")
             title = info.get("title", "video")
-            # prefer a direct file url
-            if ".googlevideo.com" in direct or direct.endswith((".mp4", ".webm", ".m3u8")):
+            # prefer a direct file url (any container yt-dlp resolved)
+            if direct and ("http" in direct):
                 return jsonify({"url": direct, "title": title})
-            # fallback: try to get the http url field
+            # fallback: scan formats for any playable url
             for f in info.get("formats", []):
                 u = f.get("url", "")
-                if u.endswith((".mp4", ".webm")):
+                if u.startswith("http"):
                     return jsonify({"url": u, "title": title})
             return jsonify({"url": direct, "title": title})
     except subprocess.TimeoutExpired:
