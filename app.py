@@ -87,5 +87,26 @@ def api():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    import sys
+    port = int(os.environ.get("PORT", 8000))
+    # Prefer gunicorn in production; fall back to flask dev server.
+    try:
+        from gunicorn.app.base import BaseApplication
+
+        class WSGIApp(BaseApplication):
+            def __init__(self, app, options):
+                self.application = app
+                self.options = options
+                super().__init__()
+
+            def load_config(self):
+                for k, v in self.options.items():
+                    self.cfg.set(k, v)
+
+            def load(self):
+                return self.application
+
+        opts = {"bind": "0.0.0.0:%d" % port, "workers": 1}
+        WSGIApp(app, opts).run()
+    except Exception:
+        app.run(host="0.0.0.0", port=port)
